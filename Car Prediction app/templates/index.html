@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AI-powered used car price predictor. Get instant, accurate price estimates for any car based on brand, model, year, mileage and fuel type." />
+  <title>CarValue AI — Instant Car Price Prediction</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <!-- Preconnect for Google Fonts (loaded via CSS) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+</head>
+<body>
+
+  <!-- ── Animated Background ── -->
+  <div class="bg-canvas">
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-orb bg-orb-3"></div>
+    <div class="stars"></div>
+  </div>
+
+  <!-- ── Page ── -->
+  <div class="page-wrapper">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-badge">
+        <span class="dot"></span>
+        AI Powered Estimator
+      </div>
+      <h1>Car Price Predictor</h1>
+      <p>Get an instant, AI-driven market valuation for any used car — just fill in the details below.</p>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats-strip">
+      <div class="stat-item">
+        <span class="stat-value">25+</span>
+        <span class="stat-label">Brands</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value">200+</span>
+        <span class="stat-label">Car Models</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value">ML</span>
+        <span class="stat-label">Powered Model</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value">₹</span>
+        <span class="stat-label">INR Prices</span>
+      </div>
+    </div>
+
+    <!-- Prediction Card -->
+    <div class="card">
+
+      <form id="predict-form" method="POST" action="/predict" autocomplete="off">
+
+        <div class="form-grid">
+
+          <!-- Company -->
+          <div class="form-group">
+            <label class="form-label" for="company">
+              <span class="icon">🏭</span> Brand / Company
+            </label>
+            <div class="select-wrapper">
+              <select id="company" name="company" class="form-control" required>
+                <option value="" disabled selected>Select brand</option>
+                {% for c in companies %}
+                  <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <!-- Car Name -->
+          <div class="form-group">
+            <label class="form-label" for="name">
+              <span class="icon">🚗</span> Car Model
+            </label>
+            <div class="select-wrapper">
+              <select id="name" name="name" class="form-control" required>
+                <option value="" disabled selected>Select model</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Year -->
+          <div class="form-group">
+            <label class="form-label" for="year">
+              <span class="icon">📅</span> Year of Purchase
+            </label>
+            <div class="select-wrapper">
+              <select id="year" name="year" class="form-control" required>
+                <option value="" disabled selected>Select year</option>
+                {% for y in years %}
+                  <option value="{{ y }}">{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <!-- Fuel Type -->
+          <div class="form-group">
+            <label class="form-label" for="fuel_type">
+              <span class="icon">⛽</span> Fuel Type
+            </label>
+            <div class="select-wrapper">
+              <select id="fuel_type" name="fuel_type" class="form-control" required>
+                <option value="" disabled selected>Select fuel</option>
+                {% for f in fuel_types %}
+                  <option value="{{ f }}">{{ f }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <!-- KMs Driven -->
+          <div class="form-group full-width">
+            <label class="form-label" for="kms_driven">
+              <span class="icon">🛣️</span> Kilometres Driven
+            </label>
+            <input
+              type="number"
+              id="kms_driven"
+              name="kms_driven"
+              class="form-control"
+              placeholder="e.g. 35000"
+              min="0"
+              max="1000000"
+              required
+            />
+          </div>
+
+        </div><!-- /.form-grid -->
+
+        <div class="divider"></div>
+
+        <button type="submit" id="predict-btn" class="btn-predict">
+          <span class="spinner"></span>
+          <span class="btn-label">✦ &nbsp;Predict Price</span>
+        </button>
+
+      </form>
+
+      <!-- Result -->
+      <div class="result-box" id="result-box">
+        <p class="result-label">Estimated Market Price</p>
+        <p class="result-car" id="result-car"></p>
+        <p class="result-price" id="result-price"></p>
+        <p class="result-note">Based on your vehicle details &amp; current market trends</p>
+        <p class="result-error-msg" id="result-error"></p>
+      </div>
+
+    </div><!-- /.card -->
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span>CarValue AI</span> &nbsp;·&nbsp; Built with Flask &amp; Linear Regression &nbsp;·&nbsp; Prices in Indian Rupees (₹)
+    </footer>
+
+  </div><!-- /.page-wrapper -->
+
+  <!-- ── JavaScript ── -->
+  <script>
+    // Car names per company (from Flask)
+    const namesByCompany = {{ names_by_company | tojson }};
+
+    const companyEl  = document.getElementById('company');
+    const nameEl     = document.getElementById('name');
+    const form       = document.getElementById('predict-form');
+    const btn        = document.getElementById('predict-btn');
+    const resultBox  = document.getElementById('result-box');
+    const resultCar  = document.getElementById('result-car');
+    const resultPrice= document.getElementById('result-price');
+    const resultError= document.getElementById('result-error');
+
+    // ── Populate model names when brand changes ──
+    companyEl.addEventListener('change', () => {
+      const company = companyEl.value;
+      nameEl.innerHTML = '<option value="" disabled selected>Select model</option>';
+      if (namesByCompany[company]) {
+        namesByCompany[company].forEach(n => {
+          const opt = document.createElement('option');
+          opt.value = n;
+          opt.textContent = n;
+          nameEl.appendChild(opt);
+        });
+      }
+    });
+
+    // ── Form submit via fetch ──
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Loading state
+      btn.classList.add('loading');
+      btn.disabled = true;
+      resultBox.style.display = 'none';
+      resultBox.classList.remove('error');
+
+      try {
+        const data = new FormData(form);
+        const res  = await fetch('/predict', { method: 'POST', body: data });
+        const json = await res.json();
+
+        resultBox.style.display = 'block';
+
+        if (json.success) {
+          const carName  = nameEl.value;
+          const carYear  = document.getElementById('year').value;
+          const kms      = parseInt(document.getElementById('kms_driven').value).toLocaleString('en-IN');
+          const price    = json.price;
+
+          resultCar.textContent  = `${carName} · ${carYear} · ${kms} km`;
+          resultPrice.textContent = '₹ ' + Math.round(price).toLocaleString('en-IN');
+          resultError.textContent = '';
+        } else {
+          resultBox.classList.add('error');
+          resultCar.textContent   = '';
+          resultPrice.textContent = '';
+          resultError.textContent = '⚠ ' + (json.error || 'Something went wrong. Please try again.');
+        }
+      } catch (err) {
+        resultBox.style.display = 'block';
+        resultBox.classList.add('error');
+        resultCar.textContent   = '';
+        resultPrice.textContent = '';
+        resultError.textContent = '⚠ Network error. Please try again.';
+      } finally {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  </script>
+
+</body>
+</html>
